@@ -85,7 +85,7 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
     CameraCharacteristics cameraCharacteristics;
     Size[] sizes;
     ImageReader mImageReader;
-    static final String TAG="Camera Errors";
+    static final String TAG="CameraErrors";
     boolean hasFlash;
     StreamConfigurationMap configs;
     String str, imagesDir, mCameraid;
@@ -131,12 +131,18 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 
     @Override
     protected void onResume() {
+        Log.i(TAG,"In onResume");
         super.onResume();
         startBackgroundThread();
-        if (textureView.isAvailable())
-            openCamera("0",textureView.getWidth(),textureView.getHeight());
-        else
+        if (textureView.isAvailable()) {
+            Log.i(TAG,"textureView available");
+            if(ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+            openCamera("0", textureView.getWidth(), textureView.getHeight());
+        }
+        else {
+            Log.i(TAG,"textureView not available");
             textureView.setSurfaceTextureListener(surfaceTextureListener);
+        }
     }
 
     @Override
@@ -148,18 +154,24 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 
     @SuppressLint("MissingPermission")
     private void openCamera(String cameraId,int width,int height) {
-        try {
-            mCameraid=cameraId;
-            cameraCharacteristics = mCameraManager.getCameraCharacteristics(cameraId);
-            configs = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            sizes = configs.getOutputSizes(SurfaceTexture.class);
-            largest = Collections.max(Arrays.asList(configs.getOutputSizes(ImageFormat.JPEG)), new CompareSizesByArea());
-            mImageReader=ImageReader.newInstance(largest.getWidth(),largest.getHeight(),ImageFormat.JPEG,2);
-            setUpCameraOutput(width,height);
-            configureTransform(width,height);
-            mCameraManager.openCamera(cameraId, stateCallback, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
+        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            AskCameraPermission();
+            return;
+        }
+        else{
+            try {
+                mCameraid = cameraId;
+                cameraCharacteristics = mCameraManager.getCameraCharacteristics(cameraId);
+                configs = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                sizes = configs.getOutputSizes(SurfaceTexture.class);
+                largest = Collections.max(Arrays.asList(configs.getOutputSizes(ImageFormat.JPEG)), new CompareSizesByArea());
+                mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(), ImageFormat.JPEG, 2);
+                setUpCameraOutput(width, height);
+                configureTransform(width, height);
+                mCameraManager.openCamera(cameraId, stateCallback, mBackgroundHandler);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -211,13 +223,6 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
                     }
                 }).show();
             }
-            else if(!shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)){
-                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                Uri uri = Uri.fromParts("package", getPackageName(), null);
-                intent.setData(uri);
-                Toast.makeText(this,"Enable camera permission",Toast.LENGTH_LONG).show();
-                startActivityForResult(intent, REQUEST_PERMISSION_SETTING);
-            }
             else
                 requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);
     }
@@ -237,10 +242,19 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         if (requestCode == CAMERA_PERMISSION) {
-            if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
+            if(!shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)){
+                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                Uri uri = Uri.fromParts("package", getPackageName(), null);
+                intent.setData(uri);
+                Toast.makeText(this,"Enable camera permission",Toast.LENGTH_LONG).show();
+                startActivityForResult(intent, REQUEST_PERMISSION_SETTING);
+            }
+            else if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
                 Log.i(TAG, "Camera Permission denied");
                 finish();
             }
+            else
+                openCamera("0",fwidth,fheight);
         }
         else
             super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -295,11 +309,7 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
         public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surfaceTexture, int i, int i1) {
             fheight=i1;
             fwidth=i;
-            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                AskCameraPermission();
-            }
-            if(ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
-               openCamera("0",i,i1);
+            openCamera("0",i,i1);
         }
 
         @Override
